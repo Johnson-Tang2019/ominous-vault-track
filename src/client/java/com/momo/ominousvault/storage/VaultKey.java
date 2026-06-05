@@ -1,6 +1,6 @@
 package com.momo.ominousvault.storage;
 
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 
 public record VaultKey(String server, String dimension, int x, int y, int z) {
     public static VaultKey of(String server, String dimension, BlockPos pos) {
