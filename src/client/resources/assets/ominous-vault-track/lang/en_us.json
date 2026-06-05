@@ -1,0 +1,21 @@
+{
+  "text.ominous-vault-track.title": "Ominous Vault Track",
+  "text.ominous-vault-track.category.general": "Highlight",
+  "text.ominous-vault-track.category.tracer": "Tracers",
+  "text.ominous-vault-track.category.refresh": "Refresh",
+  "text.ominous-vault-track.option.enabled": "Enable Highlight",
+  "text.ominous-vault-track.option.highlight_color": "Highlight Color",
+  "text.ominous-vault-track.option.excluded_mode": "Excluded Vault Rendering",
+  "text.ominous-vault-track.option.excluded_color": "Excluded Color",
+  "text.ominous-vault-track.option.render_radius": "Render Radius",
+  "text.ominous-vault-track.option.hotkey": "Quick config hotkey: B + X",
+  "text.ominous-vault-track.option.render_tracers": "Render Tracers",
+  "text.ominous-vault-track.option.tracer_color": "Tracer Color",
+  "text.ominous-vault-track.option.tracer_requires_item": "Only Render While Holding Item",
+  "text.ominous-vault-track.option.tracer_item": "Required Item ID",
+  "text.ominous-vault-track.option.refresh_enabled": "Enable Periodic Refresh",
+  "text.ominous-vault-track.option.refresh_scope": "Refresh Scope",
+  "text.ominous-vault-track.option.refresh_mode": "Refresh Mode",
+  "text.ominous-vault-track.option.refresh_minutes": "Real Time Cooldown Minutes",
+  "text.ominous-vault-track.option.daily_hour": "Daily Reset Hour"
+}

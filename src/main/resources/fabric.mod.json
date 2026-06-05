@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "ominous-vault-track",
+  "version": "${version}",
+  "name": "Ominous Vault Track",
+  "description": "Minecraft client mod that highlights ominous vaults and locally hides right-clicked vaults.",
+  "authors": [
+    "Damomo1"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.momo.ominousvault.OminousVaultTrack"
+    ],
+    "client": [
+      "com.momo.ominousvault.OminousVaultTrackClient"
+    ],
+    "modmenu": [
+      "com.momo.ominousvault.config.ModMenuIntegration"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "cloth-config": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

@@ -1,0 +1,17 @@
+package com.momo.ominousvault.storage;
+
+import net.minecraft.util.math.BlockPos;
+
+public record VaultKey(String server, String dimension, int x, int y, int z) {
+    public static VaultKey of(String server, String dimension, BlockPos pos) {
+        return new VaultKey(server, dimension, pos.getX(), pos.getY(), pos.getZ());
+    }
+
+    public String scopedKey() {
+        return server + "|" + dimension + "|" + x + "|" + y + "|" + z;
+    }
+
+    public BlockPos toBlockPos() {
+        return new BlockPos(x, y, z);
+    }
+}
