@@ -6,13 +6,14 @@ import com.momo.ominousvault.storage.VaultKey;
 import com.momo.ominousvault.storage.VaultStorage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.math.Axis;
 import java.util.Collection;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import org.joml.Matrix4f;
@@ -25,7 +26,8 @@ public class VaultRenderer {
         PoseStack matrices = context.poseStack();
         var cameraState = context.levelState().cameraRenderState;
         Vec3 camera = cameraState.pos;
-        Vector3f crosshairOrigin = getCrosshairOrigin(cameraState, matrices.last().pose());
+        var optionsState = context.gameRenderer().getGameRenderState().optionsRenderState;
+        Vector3f crosshairOrigin = getCrosshairOrigin(cameraState, optionsState.bobView, optionsState.damageTiltStrength);
         boolean renderTracer = VaultTrackerController.shouldRenderTracer(client, config);
         int tracerColor = toOpaqueArgb(config.tracerColor);
         String server = VaultTrackerController.currentServerKey(client);
@@ -83,21 +85,65 @@ public class VaultRenderer {
 
     private static Vector3f getCrosshairOrigin(
             net.minecraft.client.renderer.state.level.CameraRenderState cameraState,
-            Matrix4f pose
+            boolean bobView,
+            double damageTiltStrength
     ) {
-        if (cameraState.projectionMatrix == null) {
+        if (cameraState.projectionMatrix == null || cameraState.viewRotationMatrix == null) {
             return new Vector3f(0.0F, -0.15F, 0.0F);
         }
 
-        // Include the frame's real model-view and pose matrices so hurt tilt and view bob are
-        // inverted as well. This is what keeps Meteor's tracer origin locked to the crosshair
-        // while the player walks.
-        Matrix4f view = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(pose);
+        PoseStack bobStack = new PoseStack();
+        applyHurtBob(cameraState, bobStack, damageTiltStrength);
+        if (bobView) applyViewBob(cameraState, bobStack);
+
+        // GameRenderer multiplies view bob into the projection matrix before rendering the
+        // level. Meteor unprojects the screen center with that same matrix.
+        Matrix4f projection = new Matrix4f(cameraState.projectionMatrix).mul(bobStack.last().pose());
         Vector4f center = new Vector4f(0.0F, 0.0F, 0.0F, 1.0F)
-                .mul(new Matrix4f(cameraState.projectionMatrix).invert())
-                .mul(view.invert());
+                .mul(projection.invert())
+                .mul(new Matrix4f(cameraState.viewRotationMatrix).invert());
         center.div(center.w);
         return new Vector3f(center.x, center.y, center.z);
+    }
+
+    private static void applyHurtBob(
+            net.minecraft.client.renderer.state.level.CameraRenderState cameraState,
+            PoseStack matrices,
+            double damageTiltStrength
+    ) {
+        var entity = cameraState.entityRenderState;
+        if (!entity.isLiving) return;
+
+        float hurt = entity.hurtTime;
+        if (entity.isDeadOrDying) {
+            float duration = Math.min(entity.deathTime, 20.0F);
+            matrices.mulPose(Axis.ZP.rotationDegrees(40.0F - 8000.0F / (duration + 200.0F)));
+        }
+        if (hurt < 0.0F) return;
+
+        hurt /= entity.hurtDuration;
+        hurt = Mth.sin(hurt * hurt * hurt * hurt * (float) Math.PI);
+        matrices.mulPose(Axis.YP.rotationDegrees(-entity.hurtDir));
+        matrices.mulPose(Axis.ZP.rotationDegrees((float) (-hurt * 14.0 * damageTiltStrength)));
+        matrices.mulPose(Axis.YP.rotationDegrees(entity.hurtDir));
+    }
+
+    private static void applyViewBob(
+            net.minecraft.client.renderer.state.level.CameraRenderState cameraState,
+            PoseStack matrices
+    ) {
+        var entity = cameraState.entityRenderState;
+        if (!entity.isPlayer) return;
+
+        float walk = entity.backwardsInterpolatedWalkDistance;
+        float bob = entity.bob;
+        matrices.translate(
+                Mth.sin(walk * (float) Math.PI) * bob * 0.5F,
+                -Math.abs(Mth.cos(walk * (float) Math.PI) * bob),
+                0.0F
+        );
+        matrices.mulPose(Axis.ZP.rotationDegrees(Mth.sin(walk * (float) Math.PI) * bob * 3.0F));
+        matrices.mulPose(Axis.XP.rotationDegrees(Math.abs(Mth.cos(walk * (float) Math.PI - 0.2F) * bob) * 5.0F));
     }
 
     private static void drawLine(VertexConsumer consumer, PoseStack.Pose pose, double x1, double y1, double z1, double x2, double y2, double z2, int argb) {
