@@ -7,8 +7,8 @@ A lightweight Fabric client mod that highlights ominous vaults and lets you hide
 - Highlights ominous vaults only; normal vaults are ignored.
 - Right-click an ominous vault to locally exclude it from rendering.
 - Stores excluded vaults separately by server and dimension.
-- Configurable highlight color, tracer color, render radius, tracer item requirement, and refresh behavior.
-- Quick config shortcut: `B + X`.
+- Configurable highlight color, tracer color, render range in chunks, tracer item requirement, and refresh behavior.
+- Configurable single-key shortcut for opening the config screen (default: `B`).
 - Cloth Config settings screen with optional Mod Menu integration.
 
 ## Requirements
@@ -36,7 +36,8 @@ Available options include:
 - Tracer line color
 - Whether tracer lines require a specific held item
 - Required tracer item ID, defaulting to `minecraft:ominous_trial_key`
-- Render radius
+- Render range in chunks (1-32)
+- Config screen key
 - Optional timed refresh for locally excluded vaults
 
 ## Local Data

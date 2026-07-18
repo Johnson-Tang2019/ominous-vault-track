@@ -6,68 +6,101 @@ import com.momo.ominousvault.storage.VaultKey;
 import com.momo.ominousvault.storage.VaultStorage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.systems.RenderSystem;
 import java.util.Collection;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
 
 public class VaultRenderer {
     public void render(LevelRenderContext context, Minecraft client, Collection<VaultKey> vaults) {
         ModConfig config = ConfigManager.get();
         PoseStack matrices = context.poseStack();
-        Vec3 camera = context.levelState().cameraRenderState.pos;
+        var cameraState = context.levelState().cameraRenderState;
+        Vec3 camera = cameraState.pos;
+        Vector3f crosshairOrigin = getCrosshairOrigin(cameraState, matrices.last().pose());
         boolean renderTracer = VaultTrackerController.shouldRenderTracer(client, config);
+        int tracerColor = toOpaqueArgb(config.tracerColor);
         String server = VaultTrackerController.currentServerKey(client);
         String dimension = VaultTrackerController.currentDimensionKey(client.level);
+        BlockPos playerPos = client.player.blockPosition();
+        long blockRadius = (long) config.renderRadius * 16L;
+        long radiusSquared = blockRadius * blockRadius;
 
         matrices.pushPose();
-        matrices.translate(-camera.x, -camera.y, -camera.z);
-        Matrix4f matrix = matrices.last().pose();
-
-        VertexConsumer lines = context.bufferSource().getBuffer(RenderTypes.lines());
+        VertexConsumer boxLines = context.bufferSource().getBuffer(VaultRenderTypes.SEE_THROUGH_LINES);
         for (VaultKey key : vaults) {
-            if (!key.server().equals(server) || !key.dimension().equals(dimension)) continue;
-
+            if (!isInRenderScope(key, server, dimension, playerPos, radiusSquared)) continue;
             boolean excluded = VaultStorage.isExcluded(key);
             if (excluded && config.excludedRenderMode == ModConfig.ExcludedRenderMode.HIDE) continue;
             int boxColor = toOpaqueArgb(excluded ? config.excludedColor : config.highlightColor);
-            BlockPos pos = key.toBlockPos();
-            drawBox(lines, matrix, pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1, boxColor);
+            // Match vanilla/Meteor's world-render convention: submit camera-relative coordinates
+            // and let ShapeRenderer transform normals through the active pose.
+            ShapeRenderer.renderShape(
+                    matrices,
+                    boxLines,
+                    Shapes.block(),
+                    key.x() - camera.x,
+                    key.y() - camera.y,
+                    key.z() - camera.z,
+                    boxColor,
+                    2.0F
+            );
         }
+        context.bufferSource().endBatch(VaultRenderTypes.SEE_THROUGH_LINES);
 
         if (renderTracer) {
-            int tracerColor = toOpaqueArgb(config.tracerColor);
+            VertexConsumer tracerLines = context.bufferSource().getBuffer(RenderTypes.lines());
             for (VaultKey key : vaults) {
-                if (!key.server().equals(server) || !key.dimension().equals(dimension)) continue;
+                if (!isInRenderScope(key, server, dimension, playerPos, radiusSquared)) continue;
                 if (VaultStorage.isExcluded(key) && config.excludedRenderMode == ModConfig.ExcludedRenderMode.HIDE) continue;
-
                 Vec3 end = Vec3.atCenterOf(key.toBlockPos());
-                drawLine(lines, matrix, camera.x, camera.y - 0.15, camera.z, end.x, end.y, end.z, tracerColor);
+                drawLine(tracerLines, matrices.last(), crosshairOrigin.x, crosshairOrigin.y, crosshairOrigin.z,
+                        end.x - camera.x, end.y - camera.y, end.z - camera.z, tracerColor);
             }
         }
 
         matrices.popPose();
+        // END_MAIN is the final vanilla buffer stage. Fabric explicitly requires consumers
+        // rendered there to be flushed by the subscriber.
+        context.bufferSource().endBatch();
     }
 
-    private static void drawBox(VertexConsumer consumer, Matrix4f matrix, double x1, double y1, double z1, double x2, double y2, double z2, int argb) {
-        drawLine(consumer, matrix, x1, y1, z1, x2, y1, z1, argb);
-        drawLine(consumer, matrix, x2, y1, z1, x2, y1, z2, argb);
-        drawLine(consumer, matrix, x2, y1, z2, x1, y1, z2, argb);
-        drawLine(consumer, matrix, x1, y1, z2, x1, y1, z1, argb);
-        drawLine(consumer, matrix, x1, y2, z1, x2, y2, z1, argb);
-        drawLine(consumer, matrix, x2, y2, z1, x2, y2, z2, argb);
-        drawLine(consumer, matrix, x2, y2, z2, x1, y2, z2, argb);
-        drawLine(consumer, matrix, x1, y2, z2, x1, y2, z1, argb);
-        drawLine(consumer, matrix, x1, y1, z1, x1, y2, z1, argb);
-        drawLine(consumer, matrix, x2, y1, z1, x2, y2, z1, argb);
-        drawLine(consumer, matrix, x2, y1, z2, x2, y2, z2, argb);
-        drawLine(consumer, matrix, x1, y1, z2, x1, y2, z2, argb);
+    private static boolean isInRenderScope(VaultKey key, String server, String dimension, BlockPos playerPos, long radiusSquared) {
+        if (!key.server().equals(server) || !key.dimension().equals(dimension)) return false;
+        long dx = (long) key.x() - playerPos.getX();
+        long dy = (long) key.y() - playerPos.getY();
+        long dz = (long) key.z() - playerPos.getZ();
+        return dx * dx + dy * dy + dz * dz <= radiusSquared;
     }
 
-    private static void drawLine(VertexConsumer consumer, Matrix4f matrix, double x1, double y1, double z1, double x2, double y2, double z2, int argb) {
+    private static Vector3f getCrosshairOrigin(
+            net.minecraft.client.renderer.state.level.CameraRenderState cameraState,
+            Matrix4f pose
+    ) {
+        if (cameraState.projectionMatrix == null) {
+            return new Vector3f(0.0F, -0.15F, 0.0F);
+        }
+
+        // Include the frame's real model-view and pose matrices so hurt tilt and view bob are
+        // inverted as well. This is what keeps Meteor's tracer origin locked to the crosshair
+        // while the player walks.
+        Matrix4f view = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(pose);
+        Vector4f center = new Vector4f(0.0F, 0.0F, 0.0F, 1.0F)
+                .mul(new Matrix4f(cameraState.projectionMatrix).invert())
+                .mul(view.invert());
+        center.div(center.w);
+        return new Vector3f(center.x, center.y, center.z);
+    }
+
+    private static void drawLine(VertexConsumer consumer, PoseStack.Pose pose, double x1, double y1, double z1, double x2, double y2, double z2, int argb) {
         float nx = (float) (x2 - x1);
         float ny = (float) (y2 - y1);
         float nz = (float) (z2 - z1);
@@ -77,8 +110,9 @@ public class VaultRenderer {
             ny /= length;
             nz /= length;
         }
-        consumer.addVertex(matrix, (float) x1, (float) y1, (float) z1).setColor(argb).setLineWidth(2.0F).setNormal(nx, ny, nz);
-        consumer.addVertex(matrix, (float) x2, (float) y2, (float) z2).setColor(argb).setLineWidth(2.0F).setNormal(nx, ny, nz);
+        Vector3f normal = new Vector3f(nx, ny, nz);
+        consumer.addVertex(pose, (float) x1, (float) y1, (float) z1).setColor(argb).setLineWidth(2.0F).setNormal(pose, normal);
+        consumer.addVertex(pose, (float) x2, (float) y2, (float) z2).setColor(argb).setLineWidth(2.0F).setNormal(pose, normal);
     }
 
     private static int toOpaqueArgb(int rgb) {

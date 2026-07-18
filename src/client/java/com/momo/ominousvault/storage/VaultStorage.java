@@ -21,7 +21,9 @@ import net.fabricmc.loader.api.FabricLoader;
 public final class VaultStorage {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path STORAGE_PATH = FabricLoader.getInstance().getConfigDir().resolve(OminousVaultTrack.MOD_ID + "-vaults.json");
-    private static final Map<String, VaultRecord> RECORDS = new HashMap<>();
+    // VaultKey already has efficient value-based equality. Keeping it as the map key avoids
+    // rebuilding a concatenated scoped string during every lookup (including every render frame).
+    private static final Map<VaultKey, VaultRecord> RECORDS = new HashMap<>();
 
     private VaultStorage() {
     }
@@ -31,14 +33,13 @@ public final class VaultStorage {
     }
 
     public static void exclude(VaultKey key) {
-        String id = key.scopedKey();
-        VaultRecord record = RECORDS.computeIfAbsent(id, ignored -> new VaultRecord(key));
+        VaultRecord record = RECORDS.computeIfAbsent(key, VaultRecord::new);
         record.excludedAtMillis = System.currentTimeMillis();
         save();
     }
 
     public static boolean isExcluded(VaultKey key) {
-        VaultRecord record = RECORDS.get(key.scopedKey());
+        VaultRecord record = RECORDS.get(key);
         return record != null && record.excluded();
     }
 
@@ -87,7 +88,7 @@ public final class VaultStorage {
                 boolean droppedOldScanRecords = false;
                 for (VaultRecord record : file.records) {
                     if (record.server != null && record.dimension != null && record.excluded()) {
-                        RECORDS.put(record.key().scopedKey(), record);
+                        RECORDS.put(record.key(), record);
                     } else {
                         droppedOldScanRecords = true;
                     }

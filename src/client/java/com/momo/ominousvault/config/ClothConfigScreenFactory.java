@@ -3,6 +3,7 @@ package com.momo.ominousvault.config;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -35,11 +36,20 @@ public final class ClothConfigScreenFactory {
                 .setDefaultValue(0x40A0FF)
                 .setSaveConsumer(value -> config.excludedColor = value)
                 .build());
-        general.addEntry(entries.startIntSlider(Component.translatable("text.ominous-vault-track.option.render_radius"), config.renderRadius, 8, 512)
-                .setDefaultValue(128)
+        general.addEntry(entries.startIntField(Component.translatable("text.ominous-vault-track.option.render_chunks"), config.renderRadius)
+                .setDefaultValue(8)
+                .setMin(1)
+                .setMax(32)
                 .setSaveConsumer(value -> config.renderRadius = value)
                 .build());
-        general.addEntry(entries.startTextDescription(Component.translatable("text.ominous-vault-track.option.hotkey")).build());
+
+        ConfigCategory keybinds = builder.getOrCreateCategory(Component.translatable("text.ominous-vault-track.category.keybinds"));
+        keybinds.addEntry(entries.startKeyCodeField(
+                        Component.translatable("text.ominous-vault-track.option.hotkey"),
+                        InputConstants.Type.KEYSYM.getOrCreate(config.configHotkey))
+                .setDefaultValue(InputConstants.Type.KEYSYM.getOrCreate(66))
+                .setKeySaveConsumer(key -> config.configHotkey = key.getValue())
+                .build());
 
         ConfigCategory tracer = builder.getOrCreateCategory(Component.translatable("text.ominous-vault-track.category.tracer"));
         tracer.addEntry(entries.startBooleanToggle(Component.translatable("text.ominous-vault-track.option.render_tracers"), config.renderTracers)
