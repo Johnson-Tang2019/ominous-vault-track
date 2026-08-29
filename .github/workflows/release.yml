@@ -1,7 +1,12 @@
-name: Release Minecraft 26.2
+name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 26.2.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,10 +16,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout mc-26.2
         uses: actions/checkout@v4
         with:
           ref: mc-26.2
+          fetch-depth: 0
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Release v${{ inputs.version }} already exists."
+            exit 1
+          fi
+
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ inputs.version }} already exists."
+            exit 1
+          fi
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -28,27 +55,27 @@ jobs:
           gradle-version: '9.5.0'
 
       - name: Build
-        run: gradle build
+        run: |
+          gradle build \
+            -Pmod_version="${{ inputs.version }}" \
+            --stacktrace
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "v${{ inputs.version }}" \
+            -m "Ominous Vault Track ${{ inputs.version }}"
+
+          git push origin "v${{ inputs.version }}"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v26.2.0 \
-            build/libs/ominous-vault-track-26.2.0.jar \
-            --target mc-26.2 \
-            --title "Ominous Vault Track 26.2.0" \
-            --notes "Ported to Minecraft 26.2.
-
-          Requirements:
-          - Minecraft 26.2
-          - Fabric Loader 0.19.3+
-          - Fabric API
-          - Cloth Config
-          - Mod Menu optional
-
-          Features:
-          - Highlights ominous vaults
-          - Through-wall vault outline
-          - Tracer lines
-          - Locally hides handled vaults"
+          gh release create "v${{ inputs.version }}" \
+            "build/libs/ominous-vault-track-${{ inputs.version }}.jar" \
+            --target "v${{ inputs.version }}" \
+            --title "Ominous Vault Track ${{ inputs.version }}" \
+            --generate-notes
