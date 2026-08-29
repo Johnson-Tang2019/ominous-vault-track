@@ -123,7 +123,7 @@ public class VaultTrackerController {
 
     public static String currentServerKey(Minecraft client) {
         if (client == null) return "unknown";
-        if (client.isSingleplayer()) return "singleplayer";
+        if (client.hasSingleplayerServer()) return "singleplayer";
         ServerData info = client.getCurrentServer();
         if (info != null && info.ip != null && !info.ip.isBlank()) return info.ip;
         return "unknown";
@@ -136,8 +136,8 @@ public class VaultTrackerController {
 
     private void handleConfigCombo(Minecraft client) {
         boolean comboDown = OminousVaultTrackClient.isComboOpenConfigPressed(client);
-        if (comboDown && !comboWasDown && client.screen == null) {
-            client.setScreen(ClothConfigScreenFactory.create(null));
+        if (comboDown && !comboWasDown && client.gui.screen() == null) {
+            client.gui.setScreen(ClothConfigScreenFactory.create(null));
         }
         comboWasDown = comboDown;
     }
@@ -148,7 +148,6 @@ public class VaultTrackerController {
         lastChunkRadius = chunkRadius;
         chunksToScan.clear();
 
-        // Scan from the player outwards so nearby vaults appear first without a large one-tick spike.
         for (int ring = 0; ring <= chunkRadius; ring++) {
             for (int x = -ring; x <= ring; x++) {
                 enqueueChunk(centerChunkX + x, centerChunkZ - ring);
@@ -230,6 +229,7 @@ public class VaultTrackerController {
             cachedTracerItem = BuiltInRegistries.ITEM.getValue(id);
         }
         return client.player != null && cachedTracerItem != null
-                && (client.player.getMainHandItem().is(cachedTracerItem) || client.player.getOffhandItem().is(cachedTracerItem));
+                && (client.player.getMainHandItem().is(cachedTracerItem)
+                || client.player.getOffhandItem().is(cachedTracerItem));
     }
 }

@@ -20,7 +20,10 @@ public class OminousVaultTrackClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(CONTROLLER::tick);
         UseBlockCallback.EVENT.register(CONTROLLER::onUseBlock);
-        LevelRenderEvents.END_MAIN.register(CONTROLLER::render);
+
+        // 26.2 moved feature geometry to the submit-node rendering system.
+        // Collect both the vault outlines and tracer geometry before feature rendering.
+        LevelRenderEvents.COLLECT_SUBMITS.register(CONTROLLER::render);
     }
 
     public static boolean isComboOpenConfigPressed(Minecraft client) {
