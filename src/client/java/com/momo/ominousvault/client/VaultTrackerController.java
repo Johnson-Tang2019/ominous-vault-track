@@ -11,8 +11,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.core.BlockPos;
@@ -110,10 +111,10 @@ public class VaultTrackerController {
         return InteractionResult.PASS;
     }
 
-    public void render(LevelRenderContext context) {
+    public void renderHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.level == null || !ConfigManager.get().enabled) return;
-        renderer.render(context, client, loadedOminousVaults);
+        renderer.renderHud(graphics, client, loadedOminousVaults);
     }
 
     public static boolean isOminousVault(BlockState state) {

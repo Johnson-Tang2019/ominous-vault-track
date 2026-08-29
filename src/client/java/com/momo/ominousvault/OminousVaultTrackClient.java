@@ -5,9 +5,10 @@ import com.momo.ominousvault.config.ConfigManager;
 import com.momo.ominousvault.storage.VaultStorage;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class OminousVaultTrackClient implements ClientModInitializer {
@@ -21,9 +22,15 @@ public class OminousVaultTrackClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(CONTROLLER::tick);
         UseBlockCallback.EVENT.register(CONTROLLER::onUseBlock);
 
-        // 26.2 moved feature geometry to the submit-node rendering system.
-        // Collect both the vault outlines and tracer geometry before feature rendering.
-        LevelRenderEvents.COLLECT_SUBMITS.register(CONTROLLER::render);
+        // Render the vault ESP in the HUD instead of the world render pipeline.
+        // Iris shader packs can replace/composite the world framebuffer after custom
+        // world geometry was submitted, making RenderType-based ESP disappear.
+        // The HUD is rendered after the final world image, so this remains visible
+        // with or without Iris/shader packs and is always on top of terrain.
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath(OminousVaultTrack.MOD_ID, "vault_esp_overlay"),
+                CONTROLLER::renderHud
+        );
     }
 
     public static boolean isComboOpenConfigPressed(Minecraft client) {
