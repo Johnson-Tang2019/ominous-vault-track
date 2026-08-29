@@ -16,66 +16,75 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout mc-26.2
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           ref: mc-26.2
           fetch-depth: 0
 
       - name: Set version
-        id: version
         run: |
-          VERSION="${{ inputs.version }}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          echo "TAG=v${{ inputs.version }}" >> "$GITHUB_ENV"
 
-      - name: Check tag does not exist
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Check Release does not already exist
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "v${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "Release v${{ inputs.version }} already exists."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
             exit 1
           fi
 
-          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "Tag v${{ inputs.version }} already exists."
-            exit 1
+      - name: Select release source
+        id: source
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Existing tag found: $TAG"
+            git checkout "$TAG"
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No existing tag. Using mc-26.2 HEAD."
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.5.0'
 
       - name: Build
         run: |
           gradle build \
-            -Pmod_version="${{ inputs.version }}" \
+            -Pmod_version="$VERSION" \
             --stacktrace
 
       - name: Create Git tag
+        if: steps.source.outputs.tag_exists != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git tag -a "v${{ inputs.version }}" \
-            -m "Ominous Vault Track ${{ inputs.version }}"
+          git tag -a "$TAG" \
+            -m "Ominous Vault Track $VERSION"
 
-          git push origin "v${{ inputs.version }}"
+          git push origin "$TAG"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            "build/libs/ominous-vault-track-${{ inputs.version }}.jar" \
-            --target "v${{ inputs.version }}" \
-            --title "Ominous Vault Track ${{ inputs.version }}" \
-            --generate-notes
+          gh release create "$TAG" \
+            "build/libs/ominous-vault-track-${VERSION}.jar" \
+            --title "Ominous Vault Track ${VERSION}" \
+            --generate-notes \
+            --verify-tag
